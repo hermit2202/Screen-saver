@@ -6,17 +6,6 @@ using System.Windows.Forms;
 namespace Screen_saver
 {
     /// <summary>
-    /// Структура для хранения параметров снежинки (инкапсуляция как в эталоне)
-    /// </summary>
-    public struct Snowflake  
-    {
-        public int X;
-        public int Y;
-        public int Size;
-        public int Speed;
-    }
-
-    /// <summary>
     /// Основная форма экрана заставки с снежинками.
     /// Представляет полноэкранное приложение с анимацией падающих снежинок.
     /// </summary>
@@ -24,25 +13,25 @@ namespace Screen_saver
     {
         private List<Snowflake> snowflakes = []; 
 
-        private const int snowFlakeCount = 100;
-        private const int intervalTimer = 40;  
-        private const int minSnowflakeSpeed = 5;
-        private const int maxSnowflakeSpeed = 25;
-        private const int minSnowflakeSize = 10;
-        private const int maxSnowflakeSize = 60;
-        private const int InitialSpawnHeightMultiplier = 3; 
-        private const int SpawnBuffer = 100;
-        private const int drawStarPositionX= 0;
-        private const int drawStarPositionY = 0;
+        private const int SnowFlakeCount = 100;
+        private const int IntervalTimer = 40;  
+        private const int MinSnowflakeSpeed = 5;
+        private const int MaxSnowflakeSpeed = 25;
+        private const int MinSnowflakeSize = 10;
+        private const int MaxSnowflakeSize = 60;
+        private const int InitialSpawnHeightMultiplier = 3;
+        private const int DrawStartPositionX = 0;
+        private const int DrawStartPositionY = 0;
 
         private Random random = new();
-        private Bitmap bufferBitmap = null!;
-        private Graphics bufferGraphics = null!;  
-        private Image originalSnowFlake = null!;
-
+        private Bitmap bufferBitmap;
+        private Graphics bufferGraphics;  
+        private Image originalSnowFlake;
         private float deltaTime;  
         private DateTime lastFrameTime;  
-        private System.Windows.Forms.Timer animationTimer;  
+        private System.Windows.Forms.Timer animationTimer;
+        private Image cleanBackground;
+        private Image snowflakeImage;
 
         /// <summary>
         /// Инициализирует новый экземпляр класса ScreenSaver
@@ -51,15 +40,18 @@ namespace Screen_saver
         {
             InitializeComponent();
             this.FormBorderStyle = FormBorderStyle.None;  
-            this.WindowState = FormWindowState.Maximized;  
+            this.WindowState = FormWindowState.Maximized;
+
+            bufferBitmap = new Bitmap(Width, Height);
+            bufferGraphics = Graphics.FromImage(bufferBitmap);
 
             animationTimer = new System.Windows.Forms.Timer();
-            animationTimer.Interval = intervalTimer;
+            animationTimer.Interval = IntervalTimer;
             animationTimer.Tick += AnimationTimer_Tick; 
 
             this.Paint += ScreenSaver_Paint;
             this.Load += ScreenSaver_Load;
-            this.Resize += ScreenSaver_Resize;
+            this.SizeChanged += ScreenSaver_SizeChanged;
             this.FormClosing += ScreenSaver_FormClosing;  
             this.KeyDown += ScreenSaver_KeyDown;  
             this.Click += ScreenSaver_Click; 
@@ -79,19 +71,30 @@ namespace Screen_saver
         private void ScreenSaver_FormClosing(object? sender, FormClosingEventArgs e)
         {
             animationTimer.Stop();
+            bufferGraphics?.Dispose();
+            bufferBitmap?.Dispose();
+            cleanBackground?.Dispose();
+            snowflakeImage?.Dispose();
         }
 
         private void ScreenSaver_Paint(object? sender, PaintEventArgs e)
         {
-            e.Graphics.DrawImage(bufferBitmap, drawStarPositionX, drawStarPositionY);
+            e.Graphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
         }
 
         private void ScreenSaver_Load(object? sender, EventArgs e)
         {
             this.BackColor = Color.Black;
-            originalSnowFlake = Properties.Resources.SnowFlake;
 
-            InitializeBuffer();  
+            snowflakeImage = Properties.Resources.SnowFlake;
+            cleanBackground = new Bitmap(Width, Height);
+            using (var g = Graphics.FromImage(cleanBackground))
+            {
+                g.Clear(Color.Black);
+                if (Properties.Resources.bkg != null)
+                    g.DrawImage(Properties.Resources.bkg, DrawStartPositionX, DrawStartPositionY, Width, Height);
+            }
+
             InitializeSnowflakes();
             lastFrameTime = DateTime.Now;  
             animationTimer.Start();  
@@ -100,19 +103,18 @@ namespace Screen_saver
 
         private void InitializeSnowflakes()
         {
-            snowflakes.Clear();
-
-            for (int i = 0; i < snowFlakeCount; i++)
+            for (int i = 0; i < SnowFlakeCount; i++)
             {
-                int size = random.Next(minSnowflakeSize, maxSnowflakeSize + 1);
-                int speed = minSnowflakeSpeed + (int)((float)(size - minSnowflakeSize) / (maxSnowflakeSize - minSnowflakeSize) * (maxSnowflakeSpeed - minSnowflakeSpeed));
+                var size = random.Next(MinSnowflakeSize, MaxSnowflakeSize);
+                var speed = MinSnowflakeSpeed + (float)(size - MinSnowflakeSize) * (MaxSnowflakeSpeed - MinSnowflakeSpeed) /
+                    (MaxSnowflakeSize - MinSnowflakeSize);
 
                 snowflakes.Add(new Snowflake
                 {
-                    X = random.Next(0, this.ClientSize.Width - size),
-                    Y = random.Next(-this.ClientSize.Height * InitialSpawnHeightMultiplier, -size),
+                    X = random.Next(DrawStartPositionX, Width - size),
+                    Y = random.Next(-Height * InitialSpawnHeightMultiplier, -size),
                     Size = size,
-                    Speed = speed
+                    Speed = (int)speed //look
                 });
             }
         }
@@ -122,18 +124,12 @@ namespace Screen_saver
             bufferBitmap?.Dispose();
             bufferGraphics?.Dispose();
 
-            bufferBitmap = new Bitmap(this.ClientSize.Width, this.ClientSize.Height);
+            bufferBitmap = new Bitmap(Width, Height);
             bufferGraphics = Graphics.FromImage(bufferBitmap);
 
             bufferGraphics.SmoothingMode = SmoothingMode.None;
             bufferGraphics.InterpolationMode = InterpolationMode.NearestNeighbor;
             bufferGraphics.Clear(Color.Black);
-
-            if (Properties.Resources.bkg != null)
-            {
-                bufferGraphics.DrawImage(Properties.Resources.bkg, drawStarPositionX, drawStarPositionY,
-                    this.ClientSize.Width, this.ClientSize.Height);
-            }
         }
 
         private void AnimationTimer_Tick(object? sender, EventArgs e)
@@ -142,12 +138,21 @@ namespace Screen_saver
             deltaTime = (float)(currentTime - lastFrameTime).TotalSeconds;
             lastFrameTime = currentTime;
 
-            if (deltaTime > 0.1f) deltaTime = 0.1f;
-            float frameMultiplier = deltaTime * 60f; 
+            if (deltaTime > 0.1f)
+            {
+                deltaTime = 0.1f;
+            }
+
+            const float targetFrameRate = 60f;
+            float frameMultiplier = deltaTime * targetFrameRate; 
 
             MoveSnowflakes(frameMultiplier);  
-            DrawFrame();      
-            UpdateScreen(); 
+            DrawFrame();
+
+            using (var screenGraphics = this.CreateGraphics())
+            {
+                screenGraphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
+            }
         }
 
         private void MoveSnowflakes(float frameMultiplier)
@@ -157,13 +162,16 @@ namespace Screen_saver
                 var flake = snowflakes[i];
                 flake.Y += (int)(flake.Speed * frameMultiplier);
 
-  
-                if (flake.Y > this.ClientSize.Height + SpawnBuffer)
+                int offscreenResetThreshold = 100;
+                if (flake.Y > this.ClientSize.Height + offscreenResetThreshold)
                 {
-                    flake.Size = random.Next(minSnowflakeSize, maxSnowflakeSize + 1);
-                    flake.Speed = minSnowflakeSpeed + (int)((float)(flake.Size - minSnowflakeSize) / (maxSnowflakeSize - minSnowflakeSize) * (maxSnowflakeSpeed - minSnowflakeSpeed));
+                    flake.Size = random.Next(MinSnowflakeSize, MaxSnowflakeSize);
+
+                    flake.Speed = MinSnowflakeSpeed + (int)((float)(flake.Size - MinSnowflakeSize) /
+                        (MaxSnowflakeSize - MinSnowflakeSize) * (MaxSnowflakeSpeed - MinSnowflakeSpeed));
+
                     flake.Y = random.Next(-this.ClientSize.Height * InitialSpawnHeightMultiplier, -flake.Size);
-                    flake.X = random.Next(0, this.ClientSize.Width - flake.Size);
+                    flake.X = random.Next(DrawStartPositionX, this.ClientSize.Width - flake.Size);
                 }
 
                 snowflakes[i] = flake;
@@ -172,15 +180,13 @@ namespace Screen_saver
 
         private void DrawFrame()
         {
-            bufferGraphics.Clear(Color.Black);
-            bufferGraphics.DrawImage(Properties.Resources.bkg, drawStarPositionX, drawStarPositionY,
-                this.ClientSize.Width, this.ClientSize.Height);
+            bufferGraphics.DrawImage(cleanBackground, DrawStartPositionX, DrawStartPositionY);
 
-             foreach (var flake in snowflakes)
+            foreach (var flake in snowflakes)
              {
-                 if (flake.Y + flake.Size > 0)  
+                 if (flake.Y + flake.Size > 0 && flake.Y < Height)  
                  {
-                     bufferGraphics.DrawImage(originalSnowFlake,
+                     bufferGraphics.DrawImage(snowflakeImage,
                          flake.X, flake.Y, flake.Size, flake.Size);
                  }
              }
@@ -192,15 +198,32 @@ namespace Screen_saver
             {
                 screenGraphics.SmoothingMode = SmoothingMode.AntiAlias;
                 screenGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                screenGraphics.DrawImage(bufferBitmap, drawStarPositionX, drawStarPositionY);
+                screenGraphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
             }
         }
 
-        private void ScreenSaver_Resize(object? sender, EventArgs e)
+        private void ScreenSaver_SizeChanged(object? sender, EventArgs e)
         {
-            InitializeBuffer();   
-            InitializeSnowflakes(); 
-            UpdateScreen();       
+            if (Width > 0 && Height > 0)
+            {
+                InitializeBuffer();
+
+                cleanBackground?.Dispose();
+                cleanBackground = new Bitmap(Width, Height);
+                using (var g = Graphics.FromImage(cleanBackground))
+                {
+                    g.Clear(Color.Black);
+                    if (Properties.Resources.bkg != null)
+                        g.DrawImage(Properties.Resources.bkg, DrawStartPositionX, DrawStartPositionY, Width, Height);
+                }
+
+                InitializeSnowflakes(); 
+
+                using (var screenGraphics = this.CreateGraphics())
+                {
+                    screenGraphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
+                }
+            }
         }
     }
 }
