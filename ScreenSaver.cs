@@ -15,8 +15,8 @@ namespace Screen_saver
 
         private const int SnowFlakeCount = 100;
         private const int IntervalTimer = 40;  
-        private const int MinSnowflakeSpeed = 5;
-        private const int MaxSnowflakeSpeed = 25;
+        private const float MinSnowflakeSpeed = 5f;
+        private const float MaxSnowflakeSpeed = 25f;
         private const int MinSnowflakeSize = 10;
         private const int MaxSnowflakeSize = 60;
         private const int InitialSpawnHeightMultiplier = 3;
@@ -103,7 +103,7 @@ namespace Screen_saver
 
         private void InitializeSnowflakes()
         {
-            for (int i = 0; i < SnowFlakeCount; i++)
+            for (var i = 0; i < SnowFlakeCount; i++)
             {
                 var size = random.Next(MinSnowflakeSize, MaxSnowflakeSize);
                 var speed = MinSnowflakeSpeed + (float)(size - MinSnowflakeSize) * (MaxSnowflakeSpeed - MinSnowflakeSpeed) /
@@ -114,7 +114,7 @@ namespace Screen_saver
                     X = random.Next(DrawStartPositionX, Width - size),
                     Y = random.Next(-Height * InitialSpawnHeightMultiplier, -size),
                     Size = size,
-                    Speed = (int)speed //look
+                    Speed = speed 
                 });
             }
         }
@@ -143,7 +143,7 @@ namespace Screen_saver
                 deltaTime = 0.1f;
             }
 
-            const float targetFrameRate = 60f;
+            var targetFrameRate = 60f;
             float frameMultiplier = deltaTime * targetFrameRate; 
 
             MoveSnowflakes(frameMultiplier);  
@@ -157,18 +157,18 @@ namespace Screen_saver
 
         private void MoveSnowflakes(float frameMultiplier)
         {
-            for (int i = 0; i < snowflakes.Count; i++)
+            for (var i = 0; i < snowflakes.Count; i++)
             {
                 var flake = snowflakes[i];
-                flake.Y += (int)(flake.Speed * frameMultiplier);
+                flake.Y += (int)(flake.Speed * frameMultiplier); 
 
                 int offscreenResetThreshold = 100;
                 if (flake.Y > this.ClientSize.Height + offscreenResetThreshold)
                 {
                     flake.Size = random.Next(MinSnowflakeSize, MaxSnowflakeSize);
 
-                    flake.Speed = MinSnowflakeSpeed + (int)((float)(flake.Size - MinSnowflakeSize) /
-                        (MaxSnowflakeSize - MinSnowflakeSize) * (MaxSnowflakeSpeed - MinSnowflakeSpeed));
+                    flake.Speed = MinSnowflakeSpeed + (float)(flake.Size - MinSnowflakeSize) /
+                        (MaxSnowflakeSize - MinSnowflakeSize) * (MaxSnowflakeSpeed - MinSnowflakeSpeed);  
 
                     flake.Y = random.Next(-this.ClientSize.Height * InitialSpawnHeightMultiplier, -flake.Size);
                     flake.X = random.Next(DrawStartPositionX, this.ClientSize.Width - flake.Size);
@@ -192,37 +192,35 @@ namespace Screen_saver
              }
         }
 
-        private void UpdateScreen()
-        {
-            using (Graphics screenGraphics = this.CreateGraphics())
-            {
-                screenGraphics.SmoothingMode = SmoothingMode.AntiAlias;
-                screenGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                screenGraphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
-            }
-        }
-
         private void ScreenSaver_SizeChanged(object? sender, EventArgs e)
         {
-            if (Width > 0 && Height > 0)
+            if (this.WindowState == FormWindowState.Minimized) return;
+            if (Width <= 0 || Height <= 0) return;
+
+            InitializeBuffer();
+
+            cleanBackground?.Dispose();
+            cleanBackground = new Bitmap(Width, Height);
+            using (var g = Graphics.FromImage(cleanBackground))
             {
-                InitializeBuffer();
+                g.Clear(Color.Black);
+                if (Properties.Resources.bkg != null)
+                    g.DrawImage(Properties.Resources.bkg, DrawStartPositionX, DrawStartPositionY, 
+                        Width, Height);
+            }
 
-                cleanBackground?.Dispose();
-                cleanBackground = new Bitmap(Width, Height);
-                using (var g = Graphics.FromImage(cleanBackground))
-                {
-                    g.Clear(Color.Black);
-                    if (Properties.Resources.bkg != null)
-                        g.DrawImage(Properties.Resources.bkg, DrawStartPositionX, DrawStartPositionY, Width, Height);
-                }
+            for (var i = 0; i < snowflakes.Count; i++)
+            {
+                var flake = snowflakes[i];
+                if (flake.X > Width - flake.Size)
+                    flake.X = random.Next(DrawStartPositionX, Width - flake.Size);
+                snowflakes[i] = flake;
+            }
 
-                InitializeSnowflakes(); 
-
-                using (var screenGraphics = this.CreateGraphics())
-                {
-                    screenGraphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
-                }
+            DrawFrame();
+            using (var screenGraphics = this.CreateGraphics())
+            {
+                screenGraphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
             }
         }
     }
