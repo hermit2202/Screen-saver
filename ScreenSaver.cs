@@ -24,8 +24,8 @@ namespace Screen_saver
         private const int DrawStartPositionY = 0;
 
         private Random random = new();
-        private Bitmap bufferBitmap;
-        private Graphics bufferGraphics;
+        private Bitmap bufferBitmap = null!;
+        private Graphics bufferGraphics = null!;
         private Graphics screenGraphics = null!;  
         private float deltaTime;
         private DateTime lastFrameTime;
@@ -42,16 +42,12 @@ namespace Screen_saver
             this.FormBorderStyle = FormBorderStyle.None;
             this.WindowState = FormWindowState.Maximized;
 
-            bufferBitmap = new Bitmap(Width, Height);
-            bufferGraphics = Graphics.FromImage(bufferBitmap);
-
             animationTimer = new System.Windows.Forms.Timer();
             animationTimer.Interval = IntervalTimer;
             animationTimer.Tick += AnimationTimer_Tick;
 
             this.Paint += ScreenSaver_Paint;
             this.Load += ScreenSaver_Load;
-            this.SizeChanged += ScreenSaver_SizeChanged;
             this.FormClosing += ScreenSaver_FormClosing;
             this.KeyDown += ScreenSaver_KeyDown;
             this.Click += ScreenSaver_Click;
@@ -85,7 +81,11 @@ namespace Screen_saver
 
         private void ScreenSaver_Load(object? sender, EventArgs e)
         {
-            this.BackColor = Color.Black;
+            bufferBitmap = new Bitmap(Width, Height);
+            bufferGraphics = Graphics.FromImage(bufferBitmap);
+
+            bufferGraphics.SmoothingMode = SmoothingMode.None;
+            bufferGraphics.InterpolationMode = InterpolationMode.NearestNeighbor;
 
             snowflakeImage = Properties.Resources.SnowFlake;
             cleanBackground = new Bitmap(Width, Height);
@@ -120,19 +120,6 @@ namespace Screen_saver
                     Speed = speed
                 });
             }
-        }
-
-        private void InitializeBuffer()
-        {
-            bufferBitmap?.Dispose();
-            bufferGraphics?.Dispose();
-
-            bufferBitmap = new Bitmap(Width, Height);
-            bufferGraphics = Graphics.FromImage(bufferBitmap);
-
-            bufferGraphics.SmoothingMode = SmoothingMode.None;
-            bufferGraphics.InterpolationMode = InterpolationMode.NearestNeighbor;
-            bufferGraphics.Clear(Color.Black);
         }
 
         private void AnimationTimer_Tick(object? sender, EventArgs e)
@@ -188,37 +175,6 @@ namespace Screen_saver
                         flake.X, flake.Y, flake.Size, flake.Size);
                 }
             }
-        }
-
-        private void ScreenSaver_SizeChanged(object? sender, EventArgs e)
-        {
-            if (this.WindowState == FormWindowState.Minimized) return;
-            if (Width <= 0 || Height <= 0) return;
-
-            InitializeBuffer();
-
-            cleanBackground?.Dispose();
-            cleanBackground = new Bitmap(Width, Height);
-            using (var g = Graphics.FromImage(cleanBackground))
-            {
-                g.Clear(Color.Black);
-                if (Properties.Resources.bkg != null)
-                    g.DrawImage(Properties.Resources.bkg, DrawStartPositionX, DrawStartPositionY,
-                        Width, Height);
-            }
-
-            for (var i = 0; i < snowflakes.Count; i++)
-            {
-                var flake = snowflakes[i];
-                if (flake.X > Width - flake.Size)
-                    flake.X = random.Next(DrawStartPositionX, Width - flake.Size);
-                snowflakes[i] = flake;
-            }
-
-            DrawFrame();
-            screenGraphics?.Dispose();
-            screenGraphics = this.CreateGraphics();
-            screenGraphics.DrawImage(bufferBitmap, DrawStartPositionX, DrawStartPositionY);
         }
     }
 }
